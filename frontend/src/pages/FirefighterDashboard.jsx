@@ -10,12 +10,14 @@ function FirefighterDashboard() {
   const [emergencies, setEmergencies] = useState([]);
 
   useEffect(() => {
-    // Redirect if not firefighter
     if (!user || user.role !== 'firefighter') {
       navigate('/login');
+    } else {
+      fetchEmergencies();
     }
-    fetchEmergencies();
-  }, [user, navigate]);
+    // Only run when user changes
+    // eslint-disable-next-line
+  }, [user]);
 
   const fetchEmergencies = async () => {
     try {
@@ -34,11 +36,11 @@ function FirefighterDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-800">
           <h2 className="text-2xl font-bold mb-4">Emergency Reports</h2>
-          {emergencies.length === 0 ? (
+          {Array.isArray(emergencies) && emergencies.length === 0 ? (
             <p>No emergency reports found.</p>
           ) : (
             <div className="space-y-4">
-              {emergencies.map((emergency) => (
+              {Array.isArray(emergencies) && emergencies.map((emergency) => (
                 <div key={emergency._id} className="p-4 rounded-lg bg-gray-100 dark:bg-gray-700">
                   <h3 className="font-semibold">{emergency.incidentType}</h3>
                   <p><strong>Location:</strong> {emergency.location}</p>
@@ -55,12 +57,24 @@ function FirefighterDashboard() {
                       <div className="flex flex-wrap gap-2 mt-1">
                         {emergency.mediaFiles.map((file, idx) => {
                           let base64 = '';
-                          if (file.data && typeof file.data === 'object' && file.data.type === 'Buffer' && Array.isArray(file.data.data)) {
-                            // Node.js Buffer serialized as { type: 'Buffer', data: [...] }
-                            base64 = btoa(String.fromCharCode.apply(null, file.data.data));
-                          } else if (typeof file.data === 'string') {
-                            base64 = file.data;
+                          try {
+                            if (
+                              file.data &&
+                              typeof file.data === 'object' &&
+                              file.data.type === 'Buffer' &&
+                              Array.isArray(file.data.data) &&
+                              file.data.data.length < 5000000 // 5MB limit for safety
+                            ) {
+                              base64 = btoa(
+                                String.fromCharCode.apply(null, new Uint8Array(file.data.data))
+                              );
+                            } else if (typeof file.data === 'string') {
+                              base64 = file.data;
+                            }
+                          } catch (e) {
+                            base64 = '';
                           }
+                          if (!base64) return null;
                           return file.fileType && file.fileType.startsWith('image/') ? (
                             <img
                               key={idx}
